@@ -4,23 +4,34 @@ import { Card } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ImageUpload';
 import { PastLifeResult } from '@/components/PastLifeResult';
 import { LoadingState } from '@/components/LoadingState';
+import { PaywallModal } from '@/components/PaywallModal';
 import { generatePastLifeImage, generatePastLifeStory } from '@/lib/pastLifeAI';
+import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { toast } from 'sonner';
 import crystalBall from '@/assets/crystal-ball.png';
 
 export function PastLifeGenerator() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [result, setResult] = useState<{
     image: string;
     story: string;
     era: string;
     name: string;
   } | null>(null);
+  
+  const { hasReachedLimit, remainingUses, incrementUsage } = useUsageLimit();
 
   const handleGeneratePastLife = async () => {
     if (!selectedImage) {
       toast.error("Please upload a selfie first!");
+      return;
+    }
+
+    // Check usage limit
+    if (hasReachedLimit) {
+      setShowPaywall(true);
       return;
     }
 
@@ -32,6 +43,9 @@ export function PastLifeGenerator() {
         generatePastLifeImage(selectedImage),
         generatePastLifeStory()
       ]);
+
+      // Increment usage count
+      incrementUsage();
 
       setResult({
         image: pastLifeImage,
@@ -50,8 +64,20 @@ export function PastLifeGenerator() {
   };
 
   const handleTryAgain = () => {
+    if (hasReachedLimit) {
+      setShowPaywall(true);
+      return;
+    }
     setResult(null);
     setSelectedImage(null);
+  };
+
+  const handleUpgrade = () => {
+    // In a real app, this would integrate with Stripe
+    toast.success('Redirecting to payment... (Demo mode)');
+    setShowPaywall(false);
+    // For demo purposes, we'll reset the usage
+    // resetUsage();
   };
 
   if (isLoading) {
@@ -113,8 +139,14 @@ export function PastLifeGenerator() {
               disabled={!selectedImage || isLoading}
               className="w-full md:w-auto"
             >
-              ✨ Reveal My Past Life ✨
+              {hasReachedLimit ? '🔓 Upgrade for More' : '✨ Reveal My Past Life ✨'}
             </Button>
+            
+            {!hasReachedLimit && (
+              <p className="text-center text-sm text-accent mt-2">
+                {remainingUses} free reveals remaining
+              </p>
+            )}
           </div>
 
           {/* Features */}
@@ -136,9 +168,15 @@ export function PastLifeGenerator() {
               <h3 className="font-semibold text-accent mb-1">Share Easily</h3>
               <p className="text-sm text-muted-foreground">Perfect for social media sharing</p>
             </Card>
+            </div>
           </div>
         </div>
+        
+        <PaywallModal 
+          isOpen={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onUpgrade={handleUpgrade}
+        />
       </div>
-    </div>
   );
 }
